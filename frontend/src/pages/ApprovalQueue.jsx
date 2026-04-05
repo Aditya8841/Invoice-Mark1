@@ -94,7 +94,11 @@ const ApprovalQueue = () => {
         {},
         { withCredentials: true }
       );
-      toast.success(`Generated ${response.data.generated} new reminders`);
+      if (response.data.generated > 0) {
+        toast.success(`Added ${response.data.generated} new reminder(s) to queue`);
+      } else {
+        toast.info("No new reminders to add. Reminders are created for Sent/Overdue invoices based on due date timing.");
+      }
       fetchReminders();
     } catch (error) {
       toast.error("Failed to generate reminders");
@@ -163,12 +167,24 @@ const ApprovalQueue = () => {
           <Button
             onClick={handleGenerateReminders}
             disabled={generating}
-            variant="outline"
+            className="bg-[#1d4ed8] hover:bg-[#1e40af]"
             data-testid="generate-reminders-btn"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${generating ? "animate-spin" : ""}`} />
-            {generating ? "Generating..." : "Generate Reminders"}
+            {generating ? "Checking..." : "Check & Add Reminders"}
           </Button>
+        </div>
+
+        {/* Info Box */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h4 className="font-semibold text-blue-800 mb-2">When are reminders created?</h4>
+          <ul className="text-sm text-blue-700 space-y-1">
+            <li>• <strong>2 days before due</strong> → Polite reminder</li>
+            <li>• <strong>On due date</strong> → Professional reminder</li>
+            <li>• <strong>5 days after due</strong> → Firm reminder</li>
+            <li>• <strong>10 days after due</strong> → Strict reminder</li>
+          </ul>
+          <p className="text-xs text-blue-600 mt-2">Note: Only works for invoices with "Sent" or "Overdue" status.</p>
         </div>
 
         {/* Pending Reminders */}

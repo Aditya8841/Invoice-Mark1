@@ -71,7 +71,19 @@ class Customer(BaseModel):
     company: Optional[str] = None
     email: EmailStr
     phone: Optional[str] = None
+    # Address fields
     address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    # Business details
+    gst_number: Optional[str] = None
+    pan_number: Optional[str] = None
+    # CRM fields
+    onboarding_date: Optional[datetime] = None
+    active_services: Optional[List[str]] = None  # List of item_ids
+    notes: Optional[str] = None
+    status: Optional[str] = "Active"  # Active, Follow-up Needed, Overdue, Inactive
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class CustomerCreate(BaseModel):
@@ -80,6 +92,14 @@ class CustomerCreate(BaseModel):
     email: EmailStr
     phone: Optional[str] = None
     address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    gst_number: Optional[str] = None
+    pan_number: Optional[str] = None
+    onboarding_date: Optional[str] = None
+    active_services: Optional[List[str]] = None
+    notes: Optional[str] = None
 
 class CustomerUpdate(BaseModel):
     name: Optional[str] = None
@@ -87,6 +107,27 @@ class CustomerUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    gst_number: Optional[str] = None
+    pan_number: Optional[str] = None
+    onboarding_date: Optional[str] = None
+    active_services: Optional[List[str]] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+
+class CustomerNote(BaseModel):
+    note_id: str = Field(default_factory=lambda: f"note_{uuid.uuid4().hex[:12]}")
+    customer_id: str
+    user_id: str
+    content: str
+    note_type: str = "note"  # note, call, meeting, email, status_change
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class CustomerNoteCreate(BaseModel):
+    content: str
+    note_type: Optional[str] = "note"
 
 class Item(BaseModel):
     item_id: str = Field(default_factory=lambda: f"item_{uuid.uuid4().hex[:12]}")
@@ -120,11 +161,13 @@ class Invoice(BaseModel):
     customer_name: str
     customer_email: str
     customer_address: Optional[str] = None
+    customer_gst: Optional[str] = None
     items: List[InvoiceItem]
     subtotal: float
     tax: float = 0
     total: float
     balance_due: float
+    amount_paid: float = 0
     status: str = "Draft"  # Draft, Sent, Overdue, Paid
     issue_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     due_date: datetime
@@ -316,34 +359,137 @@ async def update_profile(update: UserUpdate, user: dict = Depends(get_current_us
 
 # ============== CUSTOMER ENDPOINTS ==============
 
+def calculate_customer_status(invoices):
+    """Calculate customer status based on invoice situation"""
+    if not invoices:
+        return "Inactive"
+    
+    has_overdue = any(inv.get("status") == "Overdue" for inv in invoices)
+    has_unpaid = any(inv.get("balance_due", 0) > 0 and inv.get("status") != "Overdue" for inv in invoices)
+    has_recent_activity = any(
+        datetime.fromisoformat(inv.get("created_at", "2000-01-01").replace("Z", "+00:00")) > datetime.now(timezone.utc) - timedelta(days=90)
+        for inv in invoices
+    )
+    
+    if has_overdue:
+        return "Overdue"
+    elif has_unpaid:
+        return "Follow-up Needed"
+    elif has_recent_activity:
+        return "Active"
+    else:
+        return "Inactive"
+
 @api_router.get("/customers")
 async def get_customers(user: dict = Depends(get_current_user)):
-    """Get all customers for user"""
+    """Get all customers for user with status calculation"""
     customers = await db.customers.find(
         {"user_id": user["user_id"]},
         {"_id": 0}
     ).to_list(1000)
     
-    # Calculate receivables for each customer
+    # Calculate receivables and status for each customer
     for customer in customers:
         invoices = await db.invoices.find(
-            {"user_id": user["user_id"], "customer_id": customer["customer_id"], "status": {"$ne": "Paid"}},
-            {"_id": 0, "balance_due": 1}
+            {"user_id": user["user_id"], "customer_id": customer["customer_id"]},
+            {"_id": 0, "balance_due": 1, "status": 1, "total": 1, "created_at": 1}
         ).to_list(1000)
-        customer["receivables"] = sum(inv.get("balance_due", 0) for inv in invoices)
+        
+        customer["receivables"] = sum(inv.get("balance_due", 0) for inv in invoices if inv.get("status") != "Paid")
+        customer["total_billed"] = sum(inv.get("total", 0) for inv in invoices)
+        customer["total_paid"] = customer["total_billed"] - customer["receivables"]
+        
+        # Auto-calculate status
+        customer["status"] = calculate_customer_status(invoices)
     
     return customers
+
+@api_router.get("/customers/{customer_id}")
+async def get_customer(customer_id: str, user: dict = Depends(get_current_user)):
+    """Get single customer with full profile and stats"""
+    customer = await db.customers.find_one(
+        {"customer_id": customer_id, "user_id": user["user_id"]},
+        {"_id": 0}
+    )
+    
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Get all invoices for this customer
+    invoices = await db.invoices.find(
+        {"user_id": user["user_id"], "customer_id": customer_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+    
+    # Calculate stats
+    customer["total_billed"] = sum(inv.get("total", 0) for inv in invoices)
+    customer["total_paid"] = sum(inv.get("total", 0) - inv.get("balance_due", 0) for inv in invoices)
+    customer["balance_due"] = sum(inv.get("balance_due", 0) for inv in invoices)
+    customer["invoice_count"] = len(invoices)
+    customer["invoices"] = invoices
+    
+    # Auto-calculate status
+    customer["status"] = calculate_customer_status(invoices)
+    
+    # Get reminders for this customer
+    reminders = await db.reminders.find(
+        {"user_id": user["user_id"], "invoice_id": {"$in": [inv["invoice_id"] for inv in invoices]}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    customer["reminders"] = reminders
+    
+    # Get activity notes
+    notes = await db.customer_notes.find(
+        {"customer_id": customer_id, "user_id": user["user_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    customer["activity_notes"] = notes
+    
+    # Get active service details
+    if customer.get("active_services"):
+        services = await db.items.find(
+            {"user_id": user["user_id"], "item_id": {"$in": customer["active_services"]}},
+            {"_id": 0}
+        ).to_list(100)
+        customer["active_services_details"] = services
+    else:
+        customer["active_services_details"] = []
+    
+    return customer
 
 @api_router.post("/customers")
 async def create_customer(customer_data: CustomerCreate, user: dict = Depends(get_current_user)):
     """Create a new customer"""
+    data = customer_data.model_dump()
+    
+    # Handle onboarding_date
+    if data.get("onboarding_date"):
+        data["onboarding_date"] = data["onboarding_date"]
+    else:
+        data["onboarding_date"] = datetime.now(timezone.utc).isoformat()
+    
     customer = Customer(
         user_id=user["user_id"],
-        **customer_data.model_dump()
+        **{k: v for k, v in data.items() if k != "onboarding_date"}
     )
     doc = customer.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
+    doc["onboarding_date"] = data["onboarding_date"]
+    if doc.get("onboarding_date") and isinstance(doc["onboarding_date"], datetime):
+        doc["onboarding_date"] = doc["onboarding_date"].isoformat()
+    
     await db.customers.insert_one(doc)
+    
+    # Add activity note for customer creation
+    note_doc = {
+        "note_id": f"note_{uuid.uuid4().hex[:12]}",
+        "customer_id": doc["customer_id"],
+        "user_id": user["user_id"],
+        "content": "Customer profile created",
+        "note_type": "status_change",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.customer_notes.insert_one(note_doc)
     
     return {k: v for k, v in doc.items() if k != "_id"}
 
@@ -377,6 +523,50 @@ async def delete_customer(customer_id: str, user: dict = Depends(get_current_use
         raise HTTPException(status_code=404, detail="Customer not found")
     
     return {"message": "Customer deleted"}
+
+# ============== CUSTOMER NOTES/ACTIVITY ENDPOINTS ==============
+
+@api_router.get("/customers/{customer_id}/notes")
+async def get_customer_notes(customer_id: str, user: dict = Depends(get_current_user)):
+    """Get all notes/activity for a customer"""
+    notes = await db.customer_notes.find(
+        {"customer_id": customer_id, "user_id": user["user_id"]},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return notes
+
+@api_router.post("/customers/{customer_id}/notes")
+async def add_customer_note(customer_id: str, note_data: CustomerNoteCreate, user: dict = Depends(get_current_user)):
+    """Add a note/activity to a customer"""
+    # Verify customer exists
+    customer = await db.customers.find_one(
+        {"customer_id": customer_id, "user_id": user["user_id"]}
+    )
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    note = CustomerNote(
+        customer_id=customer_id,
+        user_id=user["user_id"],
+        **note_data.model_dump()
+    )
+    doc = note.model_dump()
+    doc["created_at"] = doc["created_at"].isoformat()
+    await db.customer_notes.insert_one(doc)
+    
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+@api_router.delete("/customers/{customer_id}/notes/{note_id}")
+async def delete_customer_note(customer_id: str, note_id: str, user: dict = Depends(get_current_user)):
+    """Delete a customer note"""
+    result = await db.customer_notes.delete_one(
+        {"note_id": note_id, "customer_id": customer_id, "user_id": user["user_id"]}
+    )
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    return {"message": "Note deleted"}
 
 # ============== ITEM ENDPOINTS ==============
 
@@ -503,6 +693,18 @@ async def create_invoice(invoice_data: InvoiceCreate, user: dict = Depends(get_c
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     
+    # Build full address
+    address_parts = []
+    if customer.get("address"):
+        address_parts.append(customer["address"])
+    if customer.get("city"):
+        address_parts.append(customer["city"])
+    if customer.get("state"):
+        address_parts.append(customer["state"])
+    if customer.get("pincode"):
+        address_parts.append(customer["pincode"])
+    full_address = ", ".join(address_parts) if address_parts else None
+    
     # Get items and calculate totals
     invoice_items = []
     subtotal = 0
@@ -538,7 +740,8 @@ async def create_invoice(invoice_data: InvoiceCreate, user: dict = Depends(get_c
         customer_id=customer["customer_id"],
         customer_name=customer["name"],
         customer_email=customer["email"],
-        customer_address=customer.get("address"),
+        customer_address=full_address,
+        customer_gst=customer.get("gst_number"),
         items=[item.model_dump() for item in invoice_items],
         subtotal=subtotal,
         tax=invoice_data.tax,
@@ -555,7 +758,22 @@ async def create_invoice(invoice_data: InvoiceCreate, user: dict = Depends(get_c
     
     await db.invoices.insert_one(doc)
     
+    # Add activity note for the customer
+    note_doc = {
+        "note_id": f"note_{uuid.uuid4().hex[:12]}",
+        "customer_id": customer["customer_id"],
+        "user_id": user["user_id"],
+        "content": f"Invoice {invoice_number} created for {formatCurrency(total)}",
+        "note_type": "invoice",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.customer_notes.insert_one(note_doc)
+    
     return {k: v for k, v in doc.items() if k != "_id"}
+
+def formatCurrency(amount):
+    """Format currency for activity notes"""
+    return f"₹{amount:,.0f}"
 
 @api_router.put("/invoices/{invoice_id}")
 async def update_invoice(invoice_id: str, update: InvoiceUpdate, user: dict = Depends(get_current_user)):

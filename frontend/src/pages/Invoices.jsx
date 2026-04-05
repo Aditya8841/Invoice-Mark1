@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -239,12 +240,14 @@ const TemplatePreviewSpreadsheet = ({ selected }) => (
 
 const Invoices = () => {
   const { user, setUser } = useAuth();
+  const location = useLocation();
   const [invoices, setInvoices] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState("");
+  const [selectedCustomerData, setSelectedCustomerData] = useState(null);
   const [selectedItems, setSelectedItems] = useState([]);
   const [dueDate, setDueDate] = useState("");
   const [tax, setTax] = useState("0");
@@ -283,6 +286,18 @@ const Invoices = () => {
     fetchData();
   }, [fetchData]);
 
+  // Open dialog with pre-selected customer if coming from customer profile
+  useEffect(() => {
+    if (location.state?.selectedCustomerId && customers.length > 0 && !loading) {
+      const customerId = location.state.selectedCustomerId;
+      setSelectedCustomer(customerId);
+      handleCustomerSelect(customerId);
+      setIsDialogOpen(true);
+      // Clear the state so it doesn't re-trigger
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, customers, loading]);
+
   useEffect(() => {
     if (user) {
       setSelectedTemplate(user.invoice_template || "standard");
@@ -294,11 +309,41 @@ const Invoices = () => {
 
   const handleOpenDialog = () => {
     setSelectedCustomer("");
+    setSelectedCustomerData(null);
     setSelectedItems([]);
     setDueDate("");
     setTax("0");
     setNotes("");
     setIsDialogOpen(true);
+  };
+
+  // Auto-fill when customer is selected
+  const handleCustomerSelect = (customerId) => {
+    setSelectedCustomer(customerId);
+    const customer = customers.find(c => c.customer_id === customerId);
+    setSelectedCustomerData(customer);
+    
+    if (customer) {
+      // Auto-fill active services as pre-selected items
+      if (customer.active_services?.length > 0) {
+        const preSelectedItems = [];
+        customer.active_services.forEach(itemId => {
+          const item = items.find(i => i.item_id === itemId);
+          if (item) {
+            preSelectedItems.push({
+              item_id: item.item_id,
+              name: item.name,
+              rate: item.rate,
+              quantity: 1,
+              description: item.description || ""
+            });
+          }
+        });
+        if (preSelectedItems.length > 0) {
+          setSelectedItems(preSelectedItems);
+        }
+      }
+    }
   };
 
   const handleAddItem = (itemId) => {
@@ -1113,7 +1158,7 @@ const Invoices = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <Label>Customer *</Label>
-                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                <Select value={selectedCustomer} onValueChange={handleCustomerSelect}>
                   <SelectTrigger data-testid="select-customer">
                     <SelectValue placeholder="Select a customer" />
                   </SelectTrigger>
@@ -1125,6 +1170,36 @@ const Invoices = () => {
                     ))}
                   </SelectContent>
                 </Select>
+                
+                {/* Show customer details when selected */}
+                {selectedCustomerData && (
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg text-sm">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-gray-500">Bill To:</span>
+                        <p className="font-medium">{selectedCustomerData.name}</p>
+                        {selectedCustomerData.company && <p className="text-gray-600">{selectedCustomerData.company}</p>}
+                        {(selectedCustomerData.address || selectedCustomerData.city) && (
+                          <p className="text-gray-600 text-xs mt-1">
+                            {[selectedCustomerData.address, selectedCustomerData.city, selectedCustomerData.state, selectedCustomerData.pincode]
+                              .filter(Boolean).join(", ")}
+                          </p>
+                        )}
+                      </div>
+                      {selectedCustomerData.gst_number && (
+                        <div>
+                          <span className="text-gray-500">GST Number:</span>
+                          <p className="font-mono font-medium">{selectedCustomerData.gst_number}</p>
+                        </div>
+                      )}
+                    </div>
+                    {selectedCustomerData.active_services?.length > 0 && selectedItems.length > 0 && (
+                      <p className="text-xs text-blue-600 mt-2">
+                        Active services pre-selected based on customer profile
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>

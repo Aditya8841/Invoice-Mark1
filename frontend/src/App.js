@@ -8,6 +8,7 @@ import axios from "axios";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Customers from "@/pages/Customers";
+import CustomerProfile from "@/pages/CustomerProfile";
 import Items from "@/pages/Items";
 import Invoices from "@/pages/Invoices";
 import ApprovalQueue from "@/pages/ApprovalQueue";
@@ -161,6 +162,14 @@ const AppRouter = () => {
         element={
           <ProtectedRoute>
             <Customers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/customers/:customerId"
+        element={
+          <ProtectedRoute>
+            <CustomerProfile />
           </ProtectedRoute>
         }
       />

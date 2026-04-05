@@ -1,0 +1,78 @@
+{
+  "theme": "Light with Dark Sidebar",
+  "archetype": "Archetype 4 (Swiss & High-Contrast)",
+  "typography": {
+    "primary_font": "Manrope",
+    "secondary_font": "IBM Plex Sans",
+    "mono_font": "JetBrains Mono",
+    "scale": {
+      "h1": "text-4xl tracking-tight font-extrabold",
+      "h2": "text-2xl tracking-tight font-bold",
+      "h3": "text-xl font-semibold",
+      "body": "text-base font-medium",
+      "small": "text-sm text-gray-500",
+      "mono_numbers": "font-mono tracking-tight"
+    }
+  },
+  "colors": {
+    "sidebar": {
+      "background": "#09090b",
+      "text": "#a1a1aa",
+      "active_bg": "#27272a",
+      "active_text": "#ffffff"
+    },
+    "main": {
+      "background": "#f9fafb",
+      "surface": "#ffffff",
+      "border": "#e5e7eb",
+      "text": "#111827",
+      "muted": "#6b7280"
+    },
+    "brand": {
+      "primary": "#1d4ed8",
+      "hover": "#1e40af"
+    },
+    "status": {
+      "draft": { "bg": "#f3f4f6", "text": "#4b5563", "border": "#d1d5db" },
+      "sent": { "bg": "#eff6ff", "text": "#1d4ed8", "border": "#bfdbfe" },
+      "overdue": { "bg": "#fef2f2", "text": "#b91c1c", "border": "#fecaca" },
+      "paid": { "bg": "#f0fdf4", "text": "#15803d", "border": "#bbf7d0" },
+      "pending": { "bg": "#fffbeb", "text": "#b45309", "border": "#fde68a" }
+    }
+  },
+  "layout": {
+    "sidebar": "Fixed w-64, flex flex-col, h-screen",
+    "content": "ml-64 p-8 md:p-12 min-h-screen",
+    "dashboard_grid": "Bento Grid Mode B (Control Room): grid-cols-1 md:grid-cols-4 gap-6",
+    "cards": "bg-white rounded-lg border border-gray-200 shadow-sm p-6"
+  },
+  "components": {
+    "tables": "Shadcn Table, no external card wrapper needed if full width. Align numeric/currency columns to right.",
+    "buttons": "Shadcn Button, sharp rounded-md.",
+    "badges": "Shadcn Badge, flat variant, rounded-full.",
+    "modals": "Shadcn Dialog for Add/Edit forms, max-w-xl.",
+    "dropdowns": "Shadcn DropdownMenu for row actions (Edit, Delete, Mark as Paid)."
+  },
+  "pages": {
+    "login": "Minimalist layout. Left half: auth container, Right half: background image.",
+    "dashboard": "Top row: Total Receivables (col-span-4). Second row: 4 metrics for Overdue amounts (1-15 days, 16-30 days, 31-45 days, 45+ days).",
+    "customers": "CRUD Table. Columns: Name, Company, Email, Phone, Receivables. Actions: Add/Edit/Delete.",
+    "items": "CRUD Table. Columns: Name, Rate. Actions: Add/Edit/Delete.",
+    "invoices": "CRUD Table. Columns: Date, Number, Customer, Status, Due Date, Amount, Balance. Statuses: Draft, Sent, Overdue, Paid.",
+    "approval_queue": "List/Table. Columns: Client, Amount, Tone (Polite, Professional, Firm, Strict), Message Preview. Action: 'Approve & Send' button with confirmation."
+  },
+  "media": {
+    "login_background": {
+      "url": "https://images.unsplash.com/photo-1647892842753-01ee3cafd42e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzl8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwYWJzdHJhY3QlMjBhcmNoaXRlY3R1cmV8ZW58MHx8fHwxNzc1MzczMDg4fDA&ixlib=rb-4.1.0&q=85",
+      "description": "Minimalist abstract architecture image for login screen right panel."
+    }
+  },
+  "critical_rules": [
+    "Use Indian Rupees (₹) formatted as en-IN (e.g., ₹1,50,000.00) everywhere.",
+    "ALL interactive elements MUST include data-testid (e.g., data-testid='add-customer-btn').",
+    "Use lucide-react for all icons (Dashboard, Users, Box, FileText, CheckCircle).",
+    "Reminder tones map: Day -2 -> Polite, Day 0 -> Professional, Day +5 -> Firm, Day +10 -> Strict.",
+    "Never auto-send emails. They MUST sit in the Approval Queue.",
+    "PDF generation requires jsPDF integration."
+  ]
+}

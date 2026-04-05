@@ -28,7 +28,8 @@ db = client[os.environ['DB_NAME']]
 # EmailJS setup
 EMAILJS_SERVICE_ID = os.environ.get('EMAILJS_SERVICE_ID', 'service_vz9bzoi')
 EMAILJS_TEMPLATE_ID = os.environ.get('EMAILJS_TEMPLATE_ID', 'template_ca88xup')
-EMAILJS_PUBLIC_KEY = os.environ.get('EMAILJS_PUBLIC_KEY', 'xuDpYdH0fqDbZwIB6ZO1-')
+EMAILJS_PUBLIC_KEY = os.environ.get('EMAILJS_PUBLIC_KEY', 'fvOKAYXBMD8oAZiQs')
+EMAILJS_PRIVATE_KEY = os.environ.get('EMAILJS_PRIVATE_KEY', 'xuDpYdH0fqDbZwIB6ZO1-')
 
 # Gemini setup
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
@@ -1433,6 +1434,7 @@ async def approve_and_send_reminder(reminder_id: str, user: dict = Depends(get_c
                     "service_id": EMAILJS_SERVICE_ID,
                     "template_id": EMAILJS_TEMPLATE_ID,
                     "user_id": EMAILJS_PUBLIC_KEY,
+                    "accessToken": EMAILJS_PRIVATE_KEY,
                     "template_params": {
                         "to_email": reminder["customer_email"],
                         "subject": subject,

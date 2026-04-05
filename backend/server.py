@@ -243,55 +243,37 @@ async def get_current_user(request: Request) -> dict:
 
 # ============== AUTH ENDPOINTS ==============
 
-@api_router.post("/auth/session")
-async def exchange_session(request: Request, response: Response):
-    """Exchange session_id for session_token"""
-    import httpx
-    
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@invoicepush.com')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
+ADMIN_NAME = os.environ.get('ADMIN_NAME', 'Admin')
+
+@api_router.post("/auth/login")
+async def login(request: Request, response: Response):
+    """Login with email and password"""
     body = await request.json()
-    session_id = body.get("session_id")
-    
-    if not session_id:
-        raise HTTPException(status_code=400, detail="session_id required")
-    
-    # Call Emergent Auth to get session data
-    async with httpx.AsyncClient() as client_http:
-        resp = await client_http.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": session_id}
-        )
-        
-        if resp.status_code != 200:
-            raise HTTPException(status_code=401, detail="Invalid session_id")
-        
-        auth_data = resp.json()
-    
+    email = body.get("email", "").strip()
+    password = body.get("password", "")
+
+    if email != ADMIN_EMAIL or password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
     user_id = f"user_{uuid.uuid4().hex[:12]}"
-    session_token = auth_data.get("session_token")
-    
+    session_token = uuid.uuid4().hex
+
     # Check if user exists by email
     existing_user = await db.users.find_one(
-        {"email": auth_data["email"]},
+        {"email": email},
         {"_id": 0}
     )
-    
+
     if existing_user:
         user_id = existing_user["user_id"]
-        # Update user info
-        await db.users.update_one(
-            {"user_id": user_id},
-            {"$set": {
-                "name": auth_data["name"],
-                "picture": auth_data.get("picture")
-            }}
-        )
     else:
-        # Create new user
         new_user = {
             "user_id": user_id,
-            "email": auth_data["email"],
-            "name": auth_data["name"],
-            "picture": auth_data.get("picture"),
+            "email": email,
+            "name": ADMIN_NAME,
+            "picture": None,
             "business_name": None,
             "business_address": None,
             "business_phone": None,
@@ -303,7 +285,7 @@ async def exchange_session(request: Request, response: Response):
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.users.insert_one(new_user)
-    
+
     # Store session
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.insert_one({
@@ -312,7 +294,7 @@ async def exchange_session(request: Request, response: Response):
         "expires_at": expires_at.isoformat(),
         "created_at": datetime.now(timezone.utc).isoformat()
     })
-    
+
     # Set cookie
     response.set_cookie(
         key="session_token",
@@ -323,7 +305,7 @@ async def exchange_session(request: Request, response: Response):
         path="/",
         max_age=7 * 24 * 60 * 60
     )
-    
+
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
     return user
 

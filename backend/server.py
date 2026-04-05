@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 import uuid
 from datetime import datetime, timezone, timedelta
-import resend
+import httpx
 try:
     import google.generativeai as genai
 except ImportError:
@@ -25,9 +25,10 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Resend setup
-resend.api_key = os.environ.get('RESEND_API_KEY')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'compnayname@mark1.com')
+# EmailJS setup
+EMAILJS_SERVICE_ID = os.environ.get('EMAILJS_SERVICE_ID', 'service_vz9bzoi')
+EMAILJS_TEMPLATE_ID = os.environ.get('EMAILJS_TEMPLATE_ID', 'template_ca88xup')
+EMAILJS_PUBLIC_KEY = os.environ.get('EMAILJS_PUBLIC_KEY', 'xuDpYdH0fqDbZwIB6ZO1-')
 
 # Gemini setup
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
@@ -1423,17 +1424,25 @@ async def approve_and_send_reminder(reminder_id: str, user: dict = Depends(get_c
         amount=f"{reminder['amount']:,.2f}"
     )
     
-    # Send email via Resend
+    # Send email via EmailJS
     try:
-        params = {
-            "from": SENDER_EMAIL,
-            "to": [reminder["customer_email"]],
-            "subject": subject,
-            "html": reminder["message"]
-        }
-        
-        email_result = await asyncio.to_thread(resend.Emails.send, params)
-        
+        async with httpx.AsyncClient() as http_client:
+            resp = await http_client.post(
+                "https://api.emailjs.com/api/v1.0/email/send",
+                json={
+                    "service_id": EMAILJS_SERVICE_ID,
+                    "template_id": EMAILJS_TEMPLATE_ID,
+                    "user_id": EMAILJS_PUBLIC_KEY,
+                    "template_params": {
+                        "to_email": reminder["customer_email"],
+                        "subject": subject,
+                        "message": reminder["message"]
+                    }
+                }
+            )
+            if resp.status_code != 200:
+                raise Exception(f"EmailJS error: {resp.text}")
+
         # Update reminder status
         await db.reminders.update_one(
             {"reminder_id": reminder_id},
@@ -1442,9 +1451,9 @@ async def approve_and_send_reminder(reminder_id: str, user: dict = Depends(get_c
                 "sent_at": datetime.now(timezone.utc).isoformat()
             }}
         )
-        
-        return {"message": "Email sent successfully", "email_id": email_result.get("id")}
-    
+
+        return {"message": "Email sent successfully"}
+
     except Exception as e:
         logger.error(f"Failed to send email: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")

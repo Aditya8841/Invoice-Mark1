@@ -1436,7 +1436,7 @@ async def approve_and_send_reminder(reminder_id: str, user: dict = Depends(get_c
                     "user_id": EMAILJS_PUBLIC_KEY,
                     "accessToken": EMAILJS_PRIVATE_KEY,
                     "template_params": {
-                        "to_email": reminder["customer_email"],
+                        "email": reminder["customer_email"],
                         "subject": subject,
                         "message": reminder["message"]
                     }

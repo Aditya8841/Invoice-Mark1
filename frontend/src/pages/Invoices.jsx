@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -448,6 +449,7 @@ const Invoices = () => {
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create Invoice</DialogTitle>
+              <DialogDescription>Select a customer and add items to create a new invoice.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Customer Selection */}

@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -218,6 +219,9 @@ const Items = () => {
               <DialogTitle>
                 {editingItem ? "Edit Item" : "Add Item"}
               </DialogTitle>
+              <DialogDescription>
+                {editingItem ? "Update item details below." : "Add a new service or product with its rate."}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

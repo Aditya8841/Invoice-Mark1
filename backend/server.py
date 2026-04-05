@@ -49,12 +49,20 @@ class User(BaseModel):
     business_address: Optional[str] = None
     business_phone: Optional[str] = None
     business_email: Optional[str] = None
+    invoice_template: Optional[str] = "standard"
+    invoice_logo: Optional[str] = None
+    invoice_terms: Optional[str] = None
+    invoice_custom_fields: Optional[List[dict]] = None
 
 class UserUpdate(BaseModel):
     business_name: Optional[str] = None
     business_address: Optional[str] = None
     business_phone: Optional[str] = None
     business_email: Optional[str] = None
+    invoice_template: Optional[str] = None  # standard, modern, spreadsheet
+    invoice_logo: Optional[str] = None  # base64 encoded logo
+    invoice_terms: Optional[str] = None
+    invoice_custom_fields: Optional[List[dict]] = None  # [{label, value}]
 
 class Customer(BaseModel):
     customer_id: str = Field(default_factory=lambda: f"cust_{uuid.uuid4().hex[:12]}")
@@ -245,6 +253,10 @@ async def exchange_session(request: Request, response: Response):
             "business_address": None,
             "business_phone": None,
             "business_email": None,
+            "invoice_template": "standard",
+            "invoice_logo": None,
+            "invoice_terms": None,
+            "invoice_custom_fields": None,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.users.insert_one(new_user)

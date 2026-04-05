@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 class InvoicePushAPITester:
     def __init__(self, base_url="https://invoice-manager-463.preview.emergentagent.com"):
         self.base_url = base_url
-        self.session_token = "test_session_1775373685969"  # From MongoDB setup
+        self.session_token = "test_session_for_screenshots"  # From review request
         self.tests_run = 0
         self.tests_passed = 0
         self.test_data = {}
@@ -353,6 +353,108 @@ class InvoicePushAPITester:
         
         return success
 
+    def test_customization_features(self):
+        """Test new customization features"""
+        print("\n" + "="*50)
+        print("TESTING CUSTOMIZATION FEATURES")
+        print("="*50)
+        
+        # Test template selection
+        template_data = {"invoice_template": "modern"}
+        success, response = self.run_test(
+            "Update Invoice Template",
+            "PUT",
+            "auth/profile",
+            200,
+            data=template_data,
+            description="Change invoice template to modern"
+        )
+        
+        if success and response:
+            print(f"   Template updated to: {response.get('invoice_template')}")
+        
+        # Test logo upload (base64 encoded sample)
+        logo_data = {
+            "invoice_logo": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        }
+        success, response = self.run_test(
+            "Upload Invoice Logo",
+            "PUT",
+            "auth/profile",
+            200,
+            data=logo_data,
+            description="Upload business logo for invoices"
+        )
+        
+        if success and response:
+            print(f"   Logo uploaded: {'Yes' if response.get('invoice_logo') else 'No'}")
+        
+        # Test terms & conditions
+        terms_data = {
+            "invoice_terms": "Payment is due within 30 days. Late payments may incur additional charges."
+        }
+        success, response = self.run_test(
+            "Update Terms & Conditions",
+            "PUT",
+            "auth/profile",
+            200,
+            data=terms_data,
+            description="Set invoice terms and conditions"
+        )
+        
+        if success and response:
+            print(f"   Terms updated: {'Yes' if response.get('invoice_terms') else 'No'}")
+        
+        # Test custom fields
+        custom_fields_data = {
+            "invoice_custom_fields": [
+                {"label": "GST Number", "value": "27AABCU9603R1ZX"},
+                {"label": "PAN Number", "value": "AABCU9603R"}
+            ]
+        }
+        success, response = self.run_test(
+            "Update Custom Fields",
+            "PUT",
+            "auth/profile",
+            200,
+            data=custom_fields_data,
+            description="Add custom fields to invoices"
+        )
+        
+        if success and response:
+            custom_fields = response.get('invoice_custom_fields', [])
+            print(f"   Custom fields added: {len(custom_fields)}")
+            for field in custom_fields:
+                print(f"     - {field.get('label')}: {field.get('value')}")
+        
+        # Test template change to spreadsheet
+        template_data = {"invoice_template": "spreadsheet"}
+        success, response = self.run_test(
+            "Change Template to Spreadsheet",
+            "PUT",
+            "auth/profile",
+            200,
+            data=template_data,
+            description="Change invoice template to spreadsheet"
+        )
+        
+        # Verify all customizations are saved
+        success, response = self.run_test(
+            "Verify Customizations",
+            "GET",
+            "auth/me",
+            200,
+            description="Verify all customizations are persisted"
+        )
+        
+        if success and response:
+            print(f"   Final template: {response.get('invoice_template')}")
+            print(f"   Logo present: {'Yes' if response.get('invoice_logo') else 'No'}")
+            print(f"   Terms present: {'Yes' if response.get('invoice_terms') else 'No'}")
+            print(f"   Custom fields: {len(response.get('invoice_custom_fields', []))}")
+        
+        return success
+
     def cleanup_test_data(self):
         """Clean up test data"""
         print("\n" + "="*50)
@@ -417,7 +519,8 @@ class InvoicePushAPITester:
             self.test_items_crud,
             self.test_invoices_crud,
             self.test_reminders,
-            self.test_settings
+            self.test_settings,
+            self.test_customization_features
         ]
         
         for test in tests:

@@ -63,9 +63,9 @@ const Dashboard = () => {
           <div className="stat-card bg-gradient-to-r from-blue-700 to-blue-600 border-0">
             <div className="flex items-center gap-3 mb-2">
               <TrendingUp className="w-6 h-6 text-blue-100" />
-              <span className="stat-label text-blue-100">Total Receivables</span>
+              <span className="stat-label" style={{ color: "rgba(255,255,255,0.85)" }}>Total Receivables</span>
             </div>
-            <p className="stat-value text-white" data-testid="total-receivables">
+            <p className="stat-value" style={{ color: "#ffffff" }} data-testid="total-receivables">
               {formatCurrency(stats.total_receivables)}
             </p>
           </div>

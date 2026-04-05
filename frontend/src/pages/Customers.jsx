@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,11 +34,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import axios from "axios";
 import { API } from "@/App";
 import { toast } from "sonner";
-import { Plus, MoreHorizontal, Pencil, Trash2, Users, Eye, Building } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Users, Eye, Building, X, Upload } from "lucide-react";
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat("en-IN", {
@@ -57,6 +64,9 @@ const getStatusBadge = (status) => {
   );
 };
 
+const SALUTATIONS = ["Mr.", "Mrs.", "Ms.", "Dr.", "Prof."];
+const PAYMENT_TERMS = ["Due on Receipt", "Net 15", "Net 30", "Net 45", "Net 60"];
+
 const Customers = () => {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
@@ -64,20 +74,41 @@ const Customers = () => {
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [activeTab, setActiveTab] = useState("other");
+  
   const [formData, setFormData] = useState({
-    name: "",
+    customer_type: "Business",
+    salutation: "",
+    first_name: "",
+    last_name: "",
     company: "",
+    display_name: "",
     email: "",
-    phone: "",
-    address: "",
-    city: "",
-    state: "",
-    pincode: "",
-    gst_number: "",
+    work_phone: "",
+    mobile: "",
+    // Address
+    billing_address: "",
+    billing_city: "",
+    billing_state: "",
+    billing_pincode: "",
+    shipping_address: "",
+    shipping_city: "",
+    shipping_state: "",
+    shipping_pincode: "",
+    // Other Details
     pan_number: "",
+    gst_number: "",
+    payment_terms: "Due on Receipt",
+    documents: [],
+    // Contact Persons
+    contact_persons: [],
+    // Custom Fields
+    custom_fields: [],
+    // Remarks
+    remarks: "",
+    // CRM
     onboarding_date: "",
     active_services: [],
-    notes: "",
   });
 
   const fetchData = async () => {
@@ -99,41 +130,88 @@ const Customers = () => {
     fetchData();
   }, []);
 
+  // Auto-generate display name
+  useEffect(() => {
+    if (!editingCustomer) {
+      let displayName = "";
+      if (formData.customer_type === "Business" && formData.company) {
+        displayName = formData.company;
+      } else {
+        const parts = [formData.salutation, formData.first_name, formData.last_name].filter(Boolean);
+        displayName = parts.join(" ");
+      }
+      if (displayName && !formData.display_name) {
+        setFormData(prev => ({ ...prev, display_name: displayName }));
+      }
+    }
+  }, [formData.salutation, formData.first_name, formData.last_name, formData.company, formData.customer_type, editingCustomer]);
+
+  const resetForm = () => {
+    setFormData({
+      customer_type: "Business",
+      salutation: "",
+      first_name: "",
+      last_name: "",
+      company: "",
+      display_name: "",
+      email: "",
+      work_phone: "",
+      mobile: "",
+      billing_address: "",
+      billing_city: "",
+      billing_state: "",
+      billing_pincode: "",
+      shipping_address: "",
+      shipping_city: "",
+      shipping_state: "",
+      shipping_pincode: "",
+      pan_number: "",
+      gst_number: "",
+      payment_terms: "Due on Receipt",
+      documents: [],
+      contact_persons: [],
+      custom_fields: [],
+      remarks: "",
+      onboarding_date: new Date().toISOString().split("T")[0],
+      active_services: [],
+    });
+    setActiveTab("other");
+  };
+
   const handleOpenDialog = (customer = null) => {
     if (customer) {
       setEditingCustomer(customer);
       setFormData({
-        name: customer.name || "",
+        customer_type: customer.customer_type || "Business",
+        salutation: customer.salutation || "",
+        first_name: customer.first_name || customer.name?.split(" ")[0] || "",
+        last_name: customer.last_name || customer.name?.split(" ").slice(1).join(" ") || "",
         company: customer.company || "",
+        display_name: customer.display_name || customer.name || "",
         email: customer.email || "",
-        phone: customer.phone || "",
-        address: customer.address || "",
-        city: customer.city || "",
-        state: customer.state || "",
-        pincode: customer.pincode || "",
-        gst_number: customer.gst_number || "",
+        work_phone: customer.work_phone || customer.phone || "",
+        mobile: customer.mobile || "",
+        billing_address: customer.billing_address || customer.address || "",
+        billing_city: customer.billing_city || customer.city || "",
+        billing_state: customer.billing_state || customer.state || "",
+        billing_pincode: customer.billing_pincode || customer.pincode || "",
+        shipping_address: customer.shipping_address || "",
+        shipping_city: customer.shipping_city || "",
+        shipping_state: customer.shipping_state || "",
+        shipping_pincode: customer.shipping_pincode || "",
         pan_number: customer.pan_number || "",
+        gst_number: customer.gst_number || "",
+        payment_terms: customer.payment_terms || "Due on Receipt",
+        documents: customer.documents || [],
+        contact_persons: customer.contact_persons || [],
+        custom_fields: customer.custom_fields || [],
+        remarks: customer.remarks || customer.notes || "",
         onboarding_date: customer.onboarding_date ? customer.onboarding_date.split("T")[0] : "",
         active_services: customer.active_services || [],
-        notes: customer.notes || "",
       });
     } else {
       setEditingCustomer(null);
-      setFormData({
-        name: "",
-        company: "",
-        email: "",
-        phone: "",
-        address: "",
-        city: "",
-        state: "",
-        pincode: "",
-        gst_number: "",
-        pan_number: "",
-        onboarding_date: new Date().toISOString().split("T")[0],
-        active_services: [],
-        notes: "",
-      });
+      resetForm();
     }
     setIsDialogOpen(true);
   };
@@ -147,12 +225,90 @@ const Customers = () => {
     }));
   };
 
+  const handleAddContactPerson = () => {
+    setFormData(prev => ({
+      ...prev,
+      contact_persons: [...prev.contact_persons, { name: "", email: "", phone: "", designation: "" }]
+    }));
+  };
+
+  const handleRemoveContactPerson = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      contact_persons: prev.contact_persons.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleContactPersonChange = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      contact_persons: prev.contact_persons.map((cp, i) => 
+        i === index ? { ...cp, [field]: value } : cp
+      )
+    }));
+  };
+
+  const handleAddCustomField = () => {
+    setFormData(prev => ({
+      ...prev,
+      custom_fields: [...prev.custom_fields, { label: "", value: "" }]
+    }));
+  };
+
+  const handleRemoveCustomField = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      custom_fields: prev.custom_fields.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleCustomFieldChange = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      custom_fields: prev.custom_fields.map((cf, i) => 
+        i === index ? { ...cf, [field]: value } : cf
+      )
+    }));
+  };
+
+  const handleDocumentUpload = (e) => {
+    const files = Array.from(e.target.files);
+    if (formData.documents.length + files.length > 3) {
+      toast.error("Maximum 3 documents allowed");
+      return;
+    }
+    
+    files.forEach(file => {
+      if (file.size > 2000000) {
+        toast.error("File size must be less than 2MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({
+          ...prev,
+          documents: [...prev.documents, reader.result]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveDocument = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      documents: prev.documents.filter((_, i) => i !== index)
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const payload = {
       ...formData,
       onboarding_date: formData.onboarding_date || null,
+      contact_persons: formData.contact_persons.filter(cp => cp.name || cp.email),
+      custom_fields: formData.custom_fields.filter(cf => cf.label && cf.value),
     };
 
     try {
@@ -177,7 +333,7 @@ const Customers = () => {
   };
 
   const handleDelete = async (customer) => {
-    if (!window.confirm(`Delete ${customer.name}?`)) return;
+    if (!window.confirm(`Delete ${customer.display_name || customer.name}?`)) return;
 
     try {
       await axios.delete(`${API}/customers/${customer.customer_id}`, {
@@ -218,7 +374,7 @@ const Customers = () => {
             data-testid="add-customer-btn"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Add Customer
+            New Customer
           </Button>
         </div>
 
@@ -254,10 +410,10 @@ const Customers = () => {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-semibold">
-                          {customer.name[0]?.toUpperCase()}
+                          {(customer.display_name || customer.name || "?")[0]?.toUpperCase()}
                         </div>
                         <div>
-                          <div className="font-medium">{customer.name}</div>
+                          <div className="font-medium">{customer.display_name || customer.name}</div>
                           {customer.company && (
                             <div className="text-sm text-gray-500 flex items-center gap-1">
                               <Building className="w-3 h-3" />
@@ -270,7 +426,9 @@ const Customers = () => {
                     <TableCell>
                       <div className="text-sm">
                         <div>{customer.email}</div>
-                        {customer.phone && <div className="text-gray-500">{customer.phone}</div>}
+                        {(customer.work_phone || customer.mobile || customer.phone) && (
+                          <div className="text-gray-500">{customer.work_phone || customer.mobile || customer.phone}</div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -317,145 +475,202 @@ const Customers = () => {
           )}
         </div>
 
+        {/* Customer Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
-                {editingCustomer ? "Edit Customer" : "Add Customer"}
+                {editingCustomer ? "Edit Customer" : "New Customer"}
               </DialogTitle>
               <DialogDescription>
-                {editingCustomer ? "Update customer details below." : "Fill in the customer details below."}
+                {editingCustomer ? "Update customer details" : "Add a new customer to your list"}
               </DialogDescription>
             </DialogHeader>
+            
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Basic Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="name">Full Name *</Label>
+              {/* Customer Type Toggle */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={formData.customer_type === "Business" ? "default" : "outline"}
+                  onClick={() => setFormData(prev => ({ ...prev, customer_type: "Business" }))}
+                  className={formData.customer_type === "Business" ? "bg-[#1d4ed8]" : ""}
+                >
+                  Business
+                </Button>
+                <Button
+                  type="button"
+                  variant={formData.customer_type === "Individual" ? "default" : "outline"}
+                  onClick={() => setFormData(prev => ({ ...prev, customer_type: "Individual" }))}
+                  className={formData.customer_type === "Individual" ? "bg-[#1d4ed8]" : ""}
+                >
+                  Individual
+                </Button>
+              </div>
+
+              {/* Primary Contact */}
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-2">
+                  <Label>Salutation</Label>
+                  <Select value={formData.salutation} onValueChange={(v) => setFormData(prev => ({ ...prev, salutation: v }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="--" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SALUTATIONS.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-5">
+                  <Label>First Name *</Label>
                   <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={formData.first_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
                     required
-                    data-testid="customer-name-input"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="company">Company Name</Label>
+                <div className="col-span-5">
+                  <Label>Last Name</Label>
                   <Input
-                    id="company"
+                    value={formData.last_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, last_name: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Company & Display Name */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Company Name</Label>
+                  <Input
                     value={formData.company}
-                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                    data-testid="customer-company-input"
+                    onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
                   />
                 </div>
+                <div>
+                  <Label>Display Name *</Label>
+                  <Input
+                    value={formData.display_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, display_name: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Currency (Fixed) */}
+              <div className="w-1/2">
+                <Label>Currency</Label>
+                <Input value="INR - Indian Rupee" disabled className="bg-gray-50" />
+              </div>
+
+              {/* Contact Info */}
+              <div>
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  required
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                    data-testid="customer-email-input"
-                  />
+                  <Label>Work Phone</Label>
+                  <div className="flex">
+                    <span className="inline-flex items-center px-3 bg-gray-100 border border-r-0 rounded-l text-sm text-gray-600">+91</span>
+                    <Input
+                      value={formData.work_phone}
+                      onChange={(e) => setFormData(prev => ({ ...prev, work_phone: e.target.value }))}
+                      className="rounded-l-none"
+                      placeholder="Work phone"
+                    />
+                  </div>
                 </div>
                 <div>
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    data-testid="customer-phone-input"
-                  />
-                </div>
-              </div>
-
-              {/* Address */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium mb-3">Business Address</h4>
-                <div className="space-y-3">
-                  <div>
-                    <Label htmlFor="address">Street Address</Label>
+                  <Label>Mobile</Label>
+                  <div className="flex">
+                    <span className="inline-flex items-center px-3 bg-gray-100 border border-r-0 rounded-l text-sm text-gray-600">+91</span>
                     <Input
-                      id="address"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="Building, Street"
-                      data-testid="customer-address-input"
-                    />
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <Label htmlFor="city">City</Label>
-                      <Input
-                        id="city"
-                        value={formData.city}
-                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="state">State</Label>
-                      <Input
-                        id="state"
-                        value={formData.state}
-                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="pincode">Pincode</Label>
-                      <Input
-                        id="pincode"
-                        value={formData.pincode}
-                        onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Business Details */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium mb-3">Business Details</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="gst_number">GST Number</Label>
-                    <Input
-                      id="gst_number"
-                      value={formData.gst_number}
-                      onChange={(e) => setFormData({ ...formData, gst_number: e.target.value.toUpperCase() })}
-                      placeholder="22AAAAA0000A1Z5"
-                      data-testid="customer-gst-input"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pan_number">PAN Number</Label>
-                    <Input
-                      id="pan_number"
-                      value={formData.pan_number}
-                      onChange={(e) => setFormData({ ...formData, pan_number: e.target.value.toUpperCase() })}
-                      placeholder="AAAAA0000A"
-                      data-testid="customer-pan-input"
+                      value={formData.mobile}
+                      onChange={(e) => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
+                      className="rounded-l-none"
+                      placeholder="Mobile"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* CRM Fields */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium mb-3">CRM Details</h4>
-                <div className="space-y-4">
+              {/* Tabs */}
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="border rounded-lg">
+                <TabsList className="w-full justify-start border-b rounded-none bg-gray-50 px-2">
+                  <TabsTrigger value="other">Other Details</TabsTrigger>
+                  <TabsTrigger value="address">Address</TabsTrigger>
+                  <TabsTrigger value="contacts">Contact Persons</TabsTrigger>
+                  <TabsTrigger value="custom">Custom Fields</TabsTrigger>
+                  <TabsTrigger value="remarks">Remarks</TabsTrigger>
+                </TabsList>
+
+                {/* Other Details Tab */}
+                <TabsContent value="other" className="p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>PAN</Label>
+                      <Input
+                        value={formData.pan_number}
+                        onChange={(e) => setFormData(prev => ({ ...prev, pan_number: e.target.value.toUpperCase() }))}
+                        placeholder="AAAAA0000A"
+                      />
+                    </div>
+                    <div>
+                      <Label>GST Number</Label>
+                      <Input
+                        value={formData.gst_number}
+                        onChange={(e) => setFormData(prev => ({ ...prev, gst_number: e.target.value.toUpperCase() }))}
+                        placeholder="22AAAAA0000A1Z5"
+                      />
+                    </div>
+                  </div>
+                  
                   <div>
-                    <Label htmlFor="onboarding_date">Onboarding Date</Label>
-                    <Input
-                      id="onboarding_date"
-                      type="date"
-                      value={formData.onboarding_date}
-                      onChange={(e) => setFormData({ ...formData, onboarding_date: e.target.value })}
-                    />
+                    <Label>Payment Terms</Label>
+                    <Select value={formData.payment_terms} onValueChange={(v) => setFormData(prev => ({ ...prev, payment_terms: v }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_TERMS.map(t => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>Documents (Max 3)</Label>
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      {formData.documents.map((doc, i) => (
+                        <div key={i} className="relative w-20 h-20 border rounded overflow-hidden">
+                          <img src={doc} alt={`Doc ${i+1}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDocument(i)}
+                            className="absolute top-0 right-0 bg-red-500 text-white w-5 h-5 flex items-center justify-center text-xs rounded-bl"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      {formData.documents.length < 3 && (
+                        <label className="w-20 h-20 border-2 border-dashed rounded flex flex-col items-center justify-center cursor-pointer text-gray-400 hover:border-blue-400 hover:text-blue-500">
+                          <Upload className="w-5 h-5" />
+                          <span className="text-xs mt-1">Upload</span>
+                          <input type="file" accept="image/*,.pdf" onChange={handleDocumentUpload} className="hidden" />
+                        </label>
+                      )}
+                    </div>
                   </div>
 
                   {items.length > 0 && (
@@ -479,34 +694,146 @@ const Customers = () => {
                       </div>
                     </div>
                   )}
+                </TabsContent>
 
-                  <div>
-                    <Label htmlFor="notes">Notes / Remarks</Label>
-                    <Textarea
-                      id="notes"
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      placeholder="Any additional notes about this customer..."
-                      rows={3}
-                    />
+                {/* Address Tab */}
+                <TabsContent value="address" className="p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <h4 className="font-medium">Billing Address</h4>
+                      <Input
+                        placeholder="Street Address"
+                        value={formData.billing_address}
+                        onChange={(e) => setFormData(prev => ({ ...prev, billing_address: e.target.value }))}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="City"
+                          value={formData.billing_city}
+                          onChange={(e) => setFormData(prev => ({ ...prev, billing_city: e.target.value }))}
+                        />
+                        <Input
+                          placeholder="State"
+                          value={formData.billing_state}
+                          onChange={(e) => setFormData(prev => ({ ...prev, billing_state: e.target.value }))}
+                        />
+                      </div>
+                      <Input
+                        placeholder="Pincode"
+                        value={formData.billing_pincode}
+                        onChange={(e) => setFormData(prev => ({ ...prev, billing_pincode: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <h4 className="font-medium">Shipping Address</h4>
+                      <Input
+                        placeholder="Street Address"
+                        value={formData.shipping_address}
+                        onChange={(e) => setFormData(prev => ({ ...prev, shipping_address: e.target.value }))}
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="City"
+                          value={formData.shipping_city}
+                          onChange={(e) => setFormData(prev => ({ ...prev, shipping_city: e.target.value }))}
+                        />
+                        <Input
+                          placeholder="State"
+                          value={formData.shipping_state}
+                          onChange={(e) => setFormData(prev => ({ ...prev, shipping_state: e.target.value }))}
+                        />
+                      </div>
+                      <Input
+                        placeholder="Pincode"
+                        value={formData.shipping_pincode}
+                        onChange={(e) => setFormData(prev => ({ ...prev, shipping_pincode: e.target.value }))}
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
+                </TabsContent>
+
+                {/* Contact Persons Tab */}
+                <TabsContent value="contacts" className="p-4 space-y-4">
+                  {formData.contact_persons.map((cp, i) => (
+                    <div key={i} className="border rounded p-3 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium text-sm">Contact Person {i + 1}</span>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveContactPerson(i)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="Name"
+                          value={cp.name}
+                          onChange={(e) => handleContactPersonChange(i, "name", e.target.value)}
+                        />
+                        <Input
+                          placeholder="Designation"
+                          value={cp.designation}
+                          onChange={(e) => handleContactPersonChange(i, "designation", e.target.value)}
+                        />
+                        <Input
+                          placeholder="Email"
+                          value={cp.email}
+                          onChange={(e) => handleContactPersonChange(i, "email", e.target.value)}
+                        />
+                        <Input
+                          placeholder="Phone"
+                          value={cp.phone}
+                          onChange={(e) => handleContactPersonChange(i, "phone", e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" onClick={handleAddContactPerson}>
+                    <Plus className="w-4 h-4 mr-2" /> Add Contact Person
+                  </Button>
+                </TabsContent>
+
+                {/* Custom Fields Tab */}
+                <TabsContent value="custom" className="p-4 space-y-4">
+                  {formData.custom_fields.map((cf, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <Input
+                        placeholder="Label"
+                        value={cf.label}
+                        onChange={(e) => handleCustomFieldChange(i, "label", e.target.value)}
+                        className="flex-1"
+                      />
+                      <Input
+                        placeholder="Value"
+                        value={cf.value}
+                        onChange={(e) => handleCustomFieldChange(i, "value", e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveCustomField(i)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" onClick={handleAddCustomField}>
+                    <Plus className="w-4 h-4 mr-2" /> Add Custom Field
+                  </Button>
+                </TabsContent>
+
+                {/* Remarks Tab */}
+                <TabsContent value="remarks" className="p-4">
+                  <Textarea
+                    value={formData.remarks}
+                    onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
+                    placeholder="Add any notes or remarks about this customer..."
+                    rows={5}
+                  />
+                </TabsContent>
+              </Tabs>
 
               <div className="flex justify-end gap-3 pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  className="bg-[#1d4ed8] hover:bg-[#1e40af]"
-                  data-testid="save-customer-btn"
-                >
-                  {editingCustomer ? "Update" : "Add"} Customer
+                <Button type="submit" className="bg-[#1d4ed8] hover:bg-[#1e40af]">
+                  {editingCustomer ? "Update" : "Save"} Customer
                 </Button>
               </div>
             </form>

@@ -1,6 +1,15 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -15,7 +24,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -30,7 +38,7 @@ import {
 import axios from "axios";
 import { API } from "@/App";
 import { toast } from "sonner";
-import { RefreshCw, Send, Trash2, Eye, CheckCircle, Mail, AlertCircle } from "lucide-react";
+import { RefreshCw, Send, Trash2, Eye, CheckCircle, Mail, AlertCircle, Sparkles, Plus } from "lucide-react";
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat("en-IN", {
@@ -43,47 +51,59 @@ const formatCurrency = (amount) => {
 
 const getToneBadgeClass = (tone) => {
   const classes = {
-    Polite: "tone-polite",
-    Professional: "tone-professional",
-    Firm: "tone-firm",
-    Strict: "tone-strict",
+    Polite: "bg-green-100 text-green-700 border-green-200",
+    Professional: "bg-blue-100 text-blue-700 border-blue-200",
+    Firm: "bg-yellow-100 text-yellow-700 border-yellow-200",
+    Strict: "bg-red-100 text-red-700 border-red-200",
   };
-  return classes[tone] || "tone-professional";
+  return classes[tone] || "bg-gray-100 text-gray-700";
 };
 
 const getStatusBadge = (status) => {
   if (status === "Pending") {
-    return <span className="status-badge status-pending">{status}</span>;
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200">{status}</span>;
   }
   if (status === "Sent") {
-    return <span className="status-badge status-paid">{status}</span>;
+    return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">{status}</span>;
   }
-  return <span className="status-badge status-draft">{status}</span>;
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{status}</span>;
 };
 
 const ApprovalQueue = () => {
   const [reminders, setReminders] = useState([]);
+  const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [previewReminder, setPreviewReminder] = useState(null);
   const [confirmReminder, setConfirmReminder] = useState(null);
   const [sending, setSending] = useState(false);
+  
+  // AI Email Generator state
+  const [selectedInvoice, setSelectedInvoice] = useState("");
+  const [selectedTone, setSelectedTone] = useState("Professional");
+  const [generatingEmail, setGeneratingEmail] = useState(false);
+  const [generatedEmail, setGeneratedEmail] = useState("");
+  const [generatedEmailData, setGeneratedEmailData] = useState(null);
+  const [addingToQueue, setAddingToQueue] = useState(false);
 
-  const fetchReminders = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`${API}/reminders`, {
-        withCredentials: true,
-      });
-      setReminders(response.data);
+      const [remindersRes, invoicesRes] = await Promise.all([
+        axios.get(`${API}/reminders`, { withCredentials: true }),
+        axios.get(`${API}/invoices`, { withCredentials: true }),
+      ]);
+      setReminders(remindersRes.data);
+      // Filter to only unpaid invoices
+      setInvoices(invoicesRes.data.filter(inv => inv.status !== "Paid"));
     } catch (error) {
-      toast.error("Failed to fetch reminders");
+      toast.error("Failed to fetch data");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchReminders();
+    fetchData();
   }, []);
 
   const handleGenerateReminders = async () => {
@@ -99,7 +119,7 @@ const ApprovalQueue = () => {
       } else {
         toast.info("No new reminders to add. Reminders are created for Sent/Overdue invoices based on due date timing.");
       }
-      fetchReminders();
+      fetchData();
     } catch (error) {
       toast.error("Failed to generate reminders");
     } finally {
@@ -119,7 +139,7 @@ const ApprovalQueue = () => {
       );
       toast.success("Email sent successfully");
       setConfirmReminder(null);
-      fetchReminders();
+      fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || "Failed to send email");
     } finally {
@@ -135,9 +155,68 @@ const ApprovalQueue = () => {
         withCredentials: true,
       });
       toast.success("Reminder deleted");
-      fetchReminders();
+      fetchData();
     } catch (error) {
       toast.error("Failed to delete reminder");
+    }
+  };
+
+  // AI Email Generation
+  const handleGenerateAIEmail = async () => {
+    if (!selectedInvoice) {
+      toast.error("Please select an invoice");
+      return;
+    }
+
+    setGeneratingEmail(true);
+    setGeneratedEmail("");
+    setGeneratedEmailData(null);
+
+    try {
+      const response = await axios.post(
+        `${API}/reminders/generate-ai-email`,
+        {
+          invoice_id: selectedInvoice,
+          tone: selectedTone,
+        },
+        { withCredentials: true }
+      );
+      setGeneratedEmail(response.data.email_content);
+      setGeneratedEmailData(response.data);
+      toast.success("Email generated successfully");
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Failed to generate email");
+    } finally {
+      setGeneratingEmail(false);
+    }
+  };
+
+  const handleAddToQueue = async () => {
+    if (!generatedEmail || !generatedEmailData) {
+      toast.error("Please generate an email first");
+      return;
+    }
+
+    setAddingToQueue(true);
+    try {
+      await axios.post(
+        `${API}/reminders/add-to-queue`,
+        {
+          invoice_id: generatedEmailData.invoice_id,
+          tone: generatedEmailData.tone,
+          email_content: generatedEmail,
+        },
+        { withCredentials: true }
+      );
+      toast.success("Added to approval queue");
+      setGeneratedEmail("");
+      setGeneratedEmailData(null);
+      setSelectedInvoice("");
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Failed to add to queue");
+    } finally {
+      setAddingToQueue(false);
     }
   };
 
@@ -199,7 +278,7 @@ const ApprovalQueue = () => {
                 <CheckCircle className="empty-state-icon" />
                 <h3 className="empty-state-title">No pending reminders</h3>
                 <p className="empty-state-text">
-                  All reminders have been reviewed. Click "Generate Reminders" to check for new ones.
+                  All reminders have been reviewed. Use "Check & Add Reminders" or generate custom emails below.
                 </p>
               </div>
             ) : (
@@ -227,7 +306,7 @@ const ApprovalQueue = () => {
                         {formatCurrency(reminder.amount)}
                       </TableCell>
                       <TableCell>
-                        <span className={`status-badge ${getToneBadgeClass(reminder.tone)}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getToneBadgeClass(reminder.tone)}`}>
                           {reminder.tone}
                         </span>
                       </TableCell>
@@ -271,6 +350,104 @@ const ApprovalQueue = () => {
           </div>
         </div>
 
+        {/* AI Email Generator */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-purple-500" />
+            AI Email Generator
+          </h2>
+          <div className="bg-white rounded-lg border p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <Label>Select Invoice</Label>
+                <Select value={selectedInvoice} onValueChange={setSelectedInvoice}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose invoice" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {invoices.map((inv) => (
+                      <SelectItem key={inv.invoice_id} value={inv.invoice_id}>
+                        {inv.invoice_number} - {inv.customer_name} ({formatCurrency(inv.balance_due)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Tone</Label>
+                <Select value={selectedTone} onValueChange={setSelectedTone}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Polite">Polite - Friendly & Warm</SelectItem>
+                    <SelectItem value="Professional">Professional - Clear & Direct</SelectItem>
+                    <SelectItem value="Firm">Firm - Assertive</SelectItem>
+                    <SelectItem value="Strict">Strict - Final Notice</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={handleGenerateAIEmail}
+                  disabled={generatingEmail || !selectedInvoice}
+                  className="w-full bg-purple-600 hover:bg-purple-700"
+                >
+                  {generatingEmail ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Email
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {generatedEmail && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <Label>Generated Email</Label>
+                  {generatedEmailData && (
+                    <span className="text-sm text-gray-500">
+                      To: {generatedEmailData.customer_name} ({generatedEmailData.customer_email})
+                    </span>
+                  )}
+                </div>
+                <Textarea
+                  value={generatedEmail}
+                  onChange={(e) => setGeneratedEmail(e.target.value)}
+                  rows={10}
+                  className="font-mono text-sm"
+                />
+                <div className="flex justify-end mt-4">
+                  <Button
+                    onClick={handleAddToQueue}
+                    disabled={addingToQueue}
+                    className="bg-[#1d4ed8] hover:bg-[#1e40af]"
+                  >
+                    {addingToQueue ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add to Approval Queue
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Sent Reminders */}
         {sentReminders.length > 0 && (
           <div>
@@ -302,7 +479,7 @@ const ApprovalQueue = () => {
                         {formatCurrency(reminder.amount)}
                       </TableCell>
                       <TableCell>
-                        <span className={`status-badge ${getToneBadgeClass(reminder.tone)}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getToneBadgeClass(reminder.tone)}`}>
                           {reminder.tone}
                         </span>
                       </TableCell>
@@ -326,14 +503,16 @@ const ApprovalQueue = () => {
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <span className={`status-badge ${getToneBadgeClass(previewReminder?.tone)}`}>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getToneBadgeClass(previewReminder?.tone)}`}>
                   {previewReminder?.tone} Tone
                 </span>
               </div>
               <div
-                className="message-preview"
-                dangerouslySetInnerHTML={{ __html: previewReminder?.message || "" }}
-              />
+                className="bg-gray-50 border rounded-lg p-4 text-sm leading-relaxed max-h-64 overflow-y-auto whitespace-pre-wrap"
+                data-testid="email-preview-content"
+              >
+                {previewReminder?.message || ""}
+              </div>
             </div>
           </DialogContent>
         </Dialog>

@@ -49,7 +49,19 @@ import {
   AlertCircle,
   CheckCircle,
   Send,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
+
+const SALUTATIONS = ["Mr.", "Mrs.", "Ms.", "Dr.", "Prof."];
+const PAYMENT_TERMS = ["Due on Receipt", "Net 15", "Net 30", "Net 45", "Net 60"];
+const INDIAN_STATES = [
+  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa","Gujarat","Haryana",
+  "Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur",
+  "Meghalaya","Mizoram","Nagaland","Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
+  "Tripura","Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Jammu & Kashmir","Ladakh",
+];
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat("en-IN", {
@@ -148,6 +160,13 @@ const CustomerProfile = () => {
   const [noteType, setNoteType] = useState("note");
   const [addingNote, setAddingNote] = useState(false);
 
+  // Edit mode
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [items, setItems] = useState([]);
+  const [editForm, setEditForm] = useState(null);
+  const [editTab, setEditTab] = useState("details");
+
   const fetchCustomer = async () => {
     try {
       const response = await axios.get(`${API}/customers/${customerId}`, {
@@ -203,6 +222,72 @@ const CustomerProfile = () => {
     }
   };
 
+  // Fetch items for active services selector
+  useEffect(() => {
+    axios.get(`${API}/items`, { withCredentials: true })
+      .then(res => setItems(res.data))
+      .catch(() => {});
+  }, []);
+
+  const openEditDialog = () => {
+    setEditForm({
+      customer_type: customer.customer_type || "Business",
+      salutation: customer.salutation || "",
+      first_name: customer.first_name || customer.name?.split(" ")[0] || "",
+      last_name: customer.last_name || customer.name?.split(" ").slice(1).join(" ") || "",
+      company: customer.company || "",
+      display_name: customer.display_name || customer.name || "",
+      email: customer.email || "",
+      work_phone: customer.work_phone || customer.phone || "",
+      mobile: customer.mobile || "",
+      billing_address: customer.billing_address || customer.address || "",
+      billing_city: customer.billing_city || customer.city || "",
+      billing_state: customer.billing_state || customer.state || "",
+      billing_pincode: customer.billing_pincode || customer.pincode || "",
+      shipping_address: customer.shipping_address || "",
+      shipping_city: customer.shipping_city || "",
+      shipping_state: customer.shipping_state || "",
+      shipping_pincode: customer.shipping_pincode || "",
+      pan_number: customer.pan_number || "",
+      gst_number: customer.gst_number || "",
+      payment_terms: customer.payment_terms || "Due on Receipt",
+      contact_persons: customer.contact_persons || [],
+      custom_fields: customer.custom_fields || [],
+      remarks: customer.remarks || customer.notes || "",
+      onboarding_date: customer.onboarding_date ? customer.onboarding_date.split("T")[0] : "",
+      active_services: customer.active_services || [],
+    });
+    setEditTab("details");
+    setShowEditDialog(true);
+  };
+
+  const ef = (field, value) => setEditForm(prev => ({ ...prev, [field]: value }));
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editForm.first_name || !editForm.email) {
+      toast.error("First Name and Email are required");
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const payload = {
+        ...editForm,
+        onboarding_date: editForm.onboarding_date || null,
+        contact_persons: editForm.contact_persons.filter(cp => cp.name || cp.email),
+        custom_fields: editForm.custom_fields.filter(cf => cf.label || cf.value),
+      };
+      await axios.put(`${API}/customers/${customerId}`, payload, { withCredentials: true });
+      toast.success("Customer updated");
+      setShowEditDialog(false);
+      fetchCustomer();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Failed to update customer");
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -254,13 +339,23 @@ const CustomerProfile = () => {
                 )}
               </div>
             </div>
-            <Button
-              onClick={() => navigate("/invoices", { state: { selectedCustomerId: customer.customer_id } })}
-              className="bg-[#1d4ed8] hover:bg-[#1e40af]"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Invoice
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={openEditDialog}
+                data-testid="edit-customer-btn"
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Edit Details
+              </Button>
+              <Button
+                onClick={() => navigate("/invoices", { state: { selectedCustomerId: customer.customer_id } })}
+                className="bg-[#1d4ed8] hover:bg-[#1e40af]"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Invoice
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -541,10 +636,10 @@ const CustomerProfile = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="note">📝 Note</SelectItem>
-                    <SelectItem value="call">📞 Phone Call</SelectItem>
-                    <SelectItem value="meeting">📅 Meeting</SelectItem>
-                    <SelectItem value="email">📧 Email</SelectItem>
+                    <SelectItem value="note">Note</SelectItem>
+                    <SelectItem value="call">Phone Call</SelectItem>
+                    <SelectItem value="meeting">Meeting</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -569,6 +664,234 @@ const CustomerProfile = () => {
             </form>
           </DialogContent>
         </Dialog>
+
+        {/* Edit Customer Dialog */}
+        {editForm && (
+          <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Customer</DialogTitle>
+                <DialogDescription>Update details for {customer.name}</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSaveEdit} className="space-y-5">
+                {/* Tabs */}
+                <div className="flex gap-1 border-b border-gray-200">
+                  {[
+                    { id: "details", label: "Details" },
+                    { id: "address", label: "Address" },
+                    { id: "contacts", label: "Contacts" },
+                    { id: "other", label: "Other" },
+                  ].map(t => (
+                    <button key={t.id} type="button" onClick={() => setEditTab(t.id)}
+                      className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${editTab === t.id ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+                      data-testid={`edit-tab-${t.id}`}
+                    >{t.label}</button>
+                  ))}
+                </div>
+
+                {/* DETAILS TAB */}
+                {editTab === "details" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-500">Customer Type</Label>
+                        <Select value={editForm.customer_type} onValueChange={v => ef("customer_type", v)}>
+                          <SelectTrigger className="mt-1" data-testid="edit-cust-type"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Business">Business</SelectItem>
+                            <SelectItem value="Individual">Individual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">Salutation</Label>
+                        <Select value={editForm.salutation} onValueChange={v => ef("salutation", v)}>
+                          <SelectTrigger className="mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                          <SelectContent>{SALUTATIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-500">First Name *</Label>
+                        <Input value={editForm.first_name} onChange={e => ef("first_name", e.target.value)} className="mt-1" data-testid="edit-first-name" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">Last Name</Label>
+                        <Input value={editForm.last_name} onChange={e => ef("last_name", e.target.value)} className="mt-1" data-testid="edit-last-name" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-500">Company Name</Label>
+                        <Input value={editForm.company} onChange={e => ef("company", e.target.value)} className="mt-1" data-testid="edit-company" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">Display Name</Label>
+                        <Input value={editForm.display_name} onChange={e => ef("display_name", e.target.value)} className="mt-1" data-testid="edit-display-name" />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Email *</Label>
+                      <Input type="email" value={editForm.email} onChange={e => ef("email", e.target.value)} className="mt-1" data-testid="edit-email" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-500">Work Phone</Label>
+                        <Input value={editForm.work_phone} onChange={e => ef("work_phone", e.target.value)} className="mt-1" data-testid="edit-work-phone" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">Mobile</Label>
+                        <Input value={editForm.mobile} onChange={e => ef("mobile", e.target.value)} className="mt-1" data-testid="edit-mobile" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ADDRESS TAB */}
+                {editTab === "address" && (
+                  <div className="space-y-5">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">Billing Address</h4>
+                      <div className="space-y-3">
+                        <Input value={editForm.billing_address} onChange={e => ef("billing_address", e.target.value)} placeholder="Street Address" data-testid="edit-billing-address" />
+                        <div className="grid grid-cols-3 gap-3">
+                          <Input value={editForm.billing_city} onChange={e => ef("billing_city", e.target.value)} placeholder="City" data-testid="edit-billing-city" />
+                          <Select value={editForm.billing_state} onValueChange={v => ef("billing_state", v)}>
+                            <SelectTrigger data-testid="edit-billing-state"><SelectValue placeholder="State" /></SelectTrigger>
+                            <SelectContent>{INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <Input value={editForm.billing_pincode} onChange={e => ef("billing_pincode", e.target.value)} placeholder="Pin Code" data-testid="edit-billing-pincode" />
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">Shipping Address</h4>
+                      <div className="space-y-3">
+                        <Input value={editForm.shipping_address} onChange={e => ef("shipping_address", e.target.value)} placeholder="Street Address" data-testid="edit-shipping-address" />
+                        <div className="grid grid-cols-3 gap-3">
+                          <Input value={editForm.shipping_city} onChange={e => ef("shipping_city", e.target.value)} placeholder="City" />
+                          <Select value={editForm.shipping_state} onValueChange={v => ef("shipping_state", v)}>
+                            <SelectTrigger><SelectValue placeholder="State" /></SelectTrigger>
+                            <SelectContent>{INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <Input value={editForm.shipping_pincode} onChange={e => ef("shipping_pincode", e.target.value)} placeholder="Pin Code" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* CONTACTS TAB */}
+                {editTab === "contacts" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-semibold text-gray-700">Contact Persons</Label>
+                      <Button type="button" size="sm" variant="outline" onClick={() => ef("contact_persons", [...editForm.contact_persons, { name: "", email: "", phone: "", designation: "" }])} data-testid="add-contact-btn">
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Add Contact
+                      </Button>
+                    </div>
+                    {editForm.contact_persons.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-6">No contact persons added.</p>
+                    ) : (
+                      editForm.contact_persons.map((cp, i) => (
+                        <div key={i} className="border rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-500 font-medium">Contact {i + 1}</span>
+                            <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-400" onClick={() => ef("contact_persons", editForm.contact_persons.filter((_, idx) => idx !== i))}>
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input value={cp.name} onChange={e => { const u = [...editForm.contact_persons]; u[i] = {...u[i], name: e.target.value}; ef("contact_persons", u); }} placeholder="Name" className="h-8 text-sm" />
+                            <Input value={cp.email} onChange={e => { const u = [...editForm.contact_persons]; u[i] = {...u[i], email: e.target.value}; ef("contact_persons", u); }} placeholder="Email" className="h-8 text-sm" />
+                            <Input value={cp.phone} onChange={e => { const u = [...editForm.contact_persons]; u[i] = {...u[i], phone: e.target.value}; ef("contact_persons", u); }} placeholder="Phone" className="h-8 text-sm" />
+                            <Input value={cp.designation} onChange={e => { const u = [...editForm.contact_persons]; u[i] = {...u[i], designation: e.target.value}; ef("contact_persons", u); }} placeholder="Designation" className="h-8 text-sm" />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* OTHER TAB */}
+                {editTab === "other" && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-500">PAN Number</Label>
+                        <Input value={editForm.pan_number} onChange={e => ef("pan_number", e.target.value)} className="mt-1" data-testid="edit-pan" />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">GST Number</Label>
+                        <Input value={editForm.gst_number} onChange={e => ef("gst_number", e.target.value)} className="mt-1" data-testid="edit-gst" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-500">Payment Terms</Label>
+                        <Select value={editForm.payment_terms} onValueChange={v => ef("payment_terms", v)}>
+                          <SelectTrigger className="mt-1" data-testid="edit-payment-terms"><SelectValue /></SelectTrigger>
+                          <SelectContent>{PAYMENT_TERMS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-gray-500">Onboarding Date</Label>
+                        <Input type="date" value={editForm.onboarding_date} onChange={e => ef("onboarding_date", e.target.value)} className="mt-1" data-testid="edit-onboarding-date" />
+                      </div>
+                    </div>
+                    {items.length > 0 && (
+                      <div>
+                        <Label className="text-xs text-gray-500 mb-2 block">Active Services</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {items.map(item => {
+                            const active = editForm.active_services.includes(item.item_id);
+                            return (
+                              <button key={item.item_id} type="button"
+                                onClick={() => ef("active_services", active ? editForm.active_services.filter(id => id !== item.item_id) : [...editForm.active_services, item.item_id])}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${active ? "bg-blue-50 text-blue-700 border-blue-300" : "bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300"}`}
+                              >{item.name}</button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <Label className="text-xs text-gray-500">Remarks</Label>
+                      <Textarea value={editForm.remarks} onChange={e => ef("remarks", e.target.value)} rows={3} placeholder="Additional remarks..." className="mt-1" data-testid="edit-remarks" />
+                    </div>
+
+                    {/* Custom Fields */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-xs text-gray-500">Custom Fields</Label>
+                        <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => ef("custom_fields", [...editForm.custom_fields, { label: "", value: "" }])}>
+                          <Plus className="w-3 h-3 mr-1" /> Add
+                        </Button>
+                      </div>
+                      {editForm.custom_fields.map((cf, i) => (
+                        <div key={i} className="flex gap-2 items-center mb-2">
+                          <Input value={cf.label} onChange={e => { const u = [...editForm.custom_fields]; u[i] = {...u[i], label: e.target.value}; ef("custom_fields", u); }} placeholder="Label" className="h-8 text-sm" />
+                          <Input value={cf.value} onChange={e => { const u = [...editForm.custom_fields]; u[i] = {...u[i], value: e.target.value}; ef("custom_fields", u); }} placeholder="Value" className="h-8 text-sm" />
+                          <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400" onClick={() => ef("custom_fields", editForm.custom_fields.filter((_, idx) => idx !== i))}>
+                            <X className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2 border-t">
+                  <Button type="button" variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+                  <Button type="submit" className="bg-[#1d4ed8] hover:bg-[#1e40af]" disabled={editSaving} data-testid="save-customer-edit-btn">
+                    <Save className="w-4 h-4 mr-1.5" /> {editSaving ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </Layout>
   );

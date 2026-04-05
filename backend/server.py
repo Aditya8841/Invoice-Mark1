@@ -1526,7 +1526,7 @@ Details:
 The email should feel human, not automated. Keep it short — max 5 lines. No subject line needed. Start with "Dear {invoice['customer_name']}," and end with:
 
 Regards,
-The InvoicePush Team"""
+The Invoice'X Team"""
 
     try:
         gemini_model = genai.GenerativeModel("gemini-2.5-flash")
@@ -1661,7 +1661,7 @@ async def cron_webhook(request: Request):
 # Root endpoint
 @api_router.get("/")
 async def root():
-    return {"message": "InvoicePush API"}
+    return {"message": "Invoice'X API"}
 
 # Include the router in the main app
 app.include_router(api_router)

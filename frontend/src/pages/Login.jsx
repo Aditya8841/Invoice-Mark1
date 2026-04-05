@@ -39,7 +39,7 @@ const Login = () => {
     <div className="login-container">
       <div className="login-left">
         <div className="login-box">
-          <h1 className="login-title">InvoicePush</h1>
+          <h1 className="login-title">Invoice'X</h1>
           <p className="login-subtitle">
             Simple invoice management for your business
           </p>
@@ -50,7 +50,7 @@ const Login = () => {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@invoicepush.com"
+                placeholder="admin@invoicex.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

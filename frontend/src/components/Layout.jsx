@@ -26,7 +26,7 @@ export const Sidebar = () => {
   return (
     <aside className="sidebar" data-testid="sidebar">
       <div className="sidebar-header">
-        <h1 className="sidebar-logo">InvoicePush</h1>
+        <h1 className="sidebar-logo">Invoice'X</h1>
       </div>
 
       <nav className="sidebar-nav">
